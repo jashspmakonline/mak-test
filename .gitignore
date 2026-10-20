@@ -1,4 +1,7 @@
 .venv/
+.venv-1/
 __pycache__/
 *.py[cod]
 .env
+mak.db
+.DS_Store

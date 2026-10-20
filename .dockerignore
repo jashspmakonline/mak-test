@@ -1,6 +1,6 @@
 
-.git
-.github
+.git/
+.github/
 .gitignore
 
 __pycache__/
@@ -11,6 +11,7 @@ __pycache__/
 .ruff_cache/
 
 .venv/
+.venv-1/
 venv/
 env/
 
