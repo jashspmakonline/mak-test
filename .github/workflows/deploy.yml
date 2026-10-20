@@ -21,7 +21,7 @@ jobs:
       - uses: aws-actions/configure-aws-credentials@v4
         with:
           role-to-assume:  arn:aws:iam::358254890552:role/github-deploy-mak-admin
-          aws-region: ap=southeast-2
+          aws-region: ap-southeast-2
 
       - id: ecr
         uses: aws-actions/amazon-ecr-login@v2
