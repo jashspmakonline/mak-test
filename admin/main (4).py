@@ -5,10 +5,17 @@ from . import models  # noqa: F401  (registers the tables before create_all)
 from .db import Base, engine
 from .integrations import lalamove, tng
 from .routers import crm, finance, itsm
+from starlette.middleware.cors import CORSMiddleware
 
 Base.metadata.create_all(engine)
 
 app = FastAPI(title="mak-admin")
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:5173"],
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 app.include_router(crm.router)
 app.include_router(finance.router)
