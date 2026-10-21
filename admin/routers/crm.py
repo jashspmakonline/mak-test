@@ -1,3 +1,3 @@
-from fastapi import APIRoute
+from fastapi import APIRouter
 
 router = APIRouter(prefix="/crm", tags=["CRM"]) 
