@@ -1,64 +1,73 @@
-// Tiny API helper. Base URL comes from .env (VITE_API_URL) but can be
-// overridden in the UI; the API key is entered in the UI and kept only for
-// this browser tab (sessionStorage) so it is never baked into the build.
+// API helper. Calls go to the same address the page is served from, so there
+// is no URL to type. In local dev, vite.config.js forwards them to AWS.
+const BASE = (import.meta.env.VITE_API_URL || "").replace(/\/+$/, "");
 
-const store = {
-  get: (k, d = "") => {
-    try {
-      return sessionStorage.getItem(k) ?? d;
-    } catch {
-      return d;
-    }
-  },
-  set: (k, v) => {
-    try {
-      sessionStorage.setItem(k, v);
-    } catch {
-      /* ignore */
-    }
-  },
+const read = (k, d = "") => {
+  try {
+    return sessionStorage.getItem(k) ?? d;
+  } catch {
+    return d;
+  }
+};
+const write = (k, v) => {
+  try {
+    if (v) sessionStorage.setItem(k, v);
+    else sessionStorage.removeItem(k);
+  } catch {
+    /* storage unavailable */
+  }
 };
 
-export const settings = {
-  get baseUrl() {
-    return (store.get("mak_url", import.meta.env.VITE_API_URL || "") || "").replace(/\/+$/, "");
-  },
-  set baseUrl(v) {
-    store.set("mak_url", v);
-  },
-  get apiKey() {
-    return store.get("mak_key");
-  },
-  set apiKey(v) {
-    store.set("mak_key", v);
+export const session = {
+  get key() {
+    return read("mak_key");
   },
   get tenant() {
-    return store.get("mak_tenant", "mak");
+    return read("mak_tenant", "mak");
   },
-  set tenant(v) {
-    store.set("mak_tenant", v);
+  set(tenant, key) {
+    write("mak_tenant", tenant);
+    write("mak_key", key);
+  },
+  clear() {
+    write("mak_key", "");
   },
 };
 
 async function request(path, options = {}) {
-  const res = await fetch(`${settings.baseUrl}${path}`, {
-    ...options,
-    headers: {
-      "Content-Type": "application/json",
-      "X-API-Key": settings.apiKey,
-      "X-Tenant": settings.tenant,
-      ...(options.headers || {}),
-    },
-  });
+  let res;
+  try {
+    res = await fetch(`${BASE}${path}`, {
+      ...options,
+      headers: {
+        "Content-Type": "application/json",
+        "X-API-Key": session.key,
+        "X-Tenant": session.tenant,
+        ...(options.headers || {}),
+      },
+    });
+  } catch {
+    const err = new Error("Can't reach the server. Check your connection and try again.");
+    err.network = true;
+    throw err;
+  }
+  if (res.status === 401) {
+    window.dispatchEvent(new Event("mak-unauthorized"));
+    const err = new Error("Wrong access key.");
+    err.status = 401;
+    throw err;
+  }
   if (!res.ok) {
     let detail = res.statusText;
     try {
       const body = await res.json();
       detail = typeof body.detail === "string" ? body.detail : JSON.stringify(body.detail);
     } catch {
-      /* not JSON */
+      /* response was not JSON */
     }
-    throw new Error(`${res.status}: ${detail}`);
+    const err = new Error(`Request failed (${res.status}): ${detail}`);
+    err.status = res.status;
+    throw err;
   }
   return res.json();
 }
@@ -70,3 +79,15 @@ export const api = {
   financeSummary: () => request("/finance/summary"),
   addLedger: (body) => request("/finance/ledger", { method: "POST", body: JSON.stringify(body) }),
 };
+
+// The backend has no login endpoint yet, so signing in checks the key against
+// a protected endpoint. Replace with a real login call when Cognito is added.
+export async function login(tenant, key) {
+  session.set(tenant, key);
+  try {
+    await api.financeSummary();
+  } catch (err) {
+    session.clear();
+    throw err;
+  }
+}
